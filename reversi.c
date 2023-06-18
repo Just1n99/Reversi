@@ -5,6 +5,8 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <ncurses.h>
+#include <ctype.h>
+#include "reversi.h"
 
 #define BOARD_SIZE 8
 #define BLACK 'B'
@@ -30,24 +32,20 @@ void printBoard(const struct GameState* gameState) {
     int h;
     int startRow, startCol;
 
-    int boardHeight = 17; // Height of the board
-    int boardWidth = 33; // Width of the board
+    int boardHeight = 17;
+    int boardWidth = 33; 
 
-    // Calculate the starting row and column to center the board
     int windowHeight, windowWidth;
     getmaxyx(stdscr, windowHeight, windowWidth);
     startRow = (windowHeight - boardHeight) / 2;
     startCol = (windowWidth - boardWidth) / 2;
 
-    // Clear the screen
     clear();
 
-    // Draw row labels
     for (i = 0; i < BOARD_SIZE; i++) {
         mvprintw(startRow + i * 2 + 1, startCol - 3, "%d", i);
     }
 
-    // Draw column labels
     for (j = 0; j < BOARD_SIZE; j++) {
         mvprintw(startRow - 1, startCol + j * 4 + 2, "%c", 'A' + j);
     }
@@ -70,22 +68,183 @@ void printBoard(const struct GameState* gameState) {
         }
     }
 
-    // Draw stones on the board
     for (i = 0; i < BOARD_SIZE; i++) {
         for (j = 0; j < BOARD_SIZE; j++) {
             char stone = gameState->board[i][j];
             if (stone != EMPTY) {
                 int row = startRow + i * 2 + 1;
                 int col = startCol + j * 4 + 2;
-                mvprintw(row, col, "%c", stone);
+                mvaddch(row, col, stone);
             }
         }
     }
 
-    // Refresh the screen to display the changes
     refresh();
 }
 
+void runServer(int port) {
+    int socket_desc, client_sock, c;
+    struct sockaddr_in server, client;
+
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1) {
+        perror("Failed to create socket");
+        exit(1);
+    }
+
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(port);
+
+    if (bind(socket_desc, (struct sockaddr*)&server, sizeof(server)) < 0) {
+        perror("Bind failed");
+        exit(1);
+    }
+
+    listen(socket_desc, 3);
+
+    puts("Waiting for incoming connections...");
+    c = sizeof(struct sockaddr_in);
+    client_sock = accept(socket_desc, (struct sockaddr*)&client, (socklen_t*)&c);
+    if (client_sock < 0) {
+        perror("Accept failed");
+        exit(1);
+    }
+
+    puts("Connection accepted");
+
+    struct GameState gameState;
+    initializeGame(&gameState);
+
+
+    int row, col;
+    char message[256];
+    int gameover = 0;
+    while (!gameover) {
+        printBoard(&gameState);
+        mvprintw(LINES - 1, 0, "Waiting for player's move...");
+
+        refresh();
+
+        if (recv(client_sock, message, sizeof(message), 0) < 0) {
+            perror("Receive failed");
+            exit(1);
+        }
+
+        sscanf(message, "%d,%d", &row, &col);
+        printf("Player move: %d,%d\n", row, col);
+
+        if (!isValidMove(&gameState, row, col)) {
+            printf("Invalid move, try again.\n");
+            continue;
+        }
+
+
+        makeMove(&gameState, row, col);
+
+
+        gameover = 1;
+        for (row = 0; row < BOARD_SIZE; row++) {
+            for (col = 0; col < BOARD_SIZE; col++) {
+                if (isValidMove(&gameState, row, col)) {
+                    gameover = 0;
+                    break;
+                }
+            }
+            if (!gameover) {
+                break;
+            }
+        }
+
+        if (send(client_sock, &gameState, sizeof(gameState), 0) < 0) {
+            perror("Send failed");
+            exit(1);
+        }
+    }
+
+    printBoard(&gameState);
+    printf("Game over!\n");
+
+
+    close(client_sock);
+    close(socket_desc);
+}
+
+void runClient(const char* serverIP, int port) {
+    int sock;
+    struct sockaddr_in server;
+    char message[256];
+    struct GameState gameState;
+
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1) {
+        perror("Failed to create socket");
+        exit(1);
+    }
+
+    server.sin_addr.s_addr = inet_addr(serverIP);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
+
+    if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
+        perror("Connection failed");
+        exit(1);
+    }
+
+    puts("Connected to server");
+
+
+    initializeGame(&gameState);
+
+
+    initscr();
+    cbreak();
+    noecho();
+    keypad(stdscr, TRUE);
+
+
+    int row;
+    char col;
+    int gameover = 0;
+    while (!gameover) {
+  
+        clear();
+        printBoard(&gameState);
+        mvprintw(LINES - 1, 0, "Enter your move (e.g., 3C): ");
+        refresh();  
+
+        char userInput[256];
+        echo();  
+        wgetstr(stdscr, userInput); 
+        noecho(); 
+
+
+        if (sscanf(userInput, "%d%c", &row, &col) != 2) {
+
+            mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
+            continue;
+        }
+        row--;  
+        col = toupper(col) - 'A';  
+
+        snprintf(message, sizeof(message), "%d,%d", row, col);
+        if (send(sock, message, strlen(message), 0) < 0) {
+            perror("Send failed");
+            exit(1);
+        }
+
+        if (recv(sock, &gameState, sizeof(gameState), 0) < 0) {
+            perror("Receive failed");
+            exit(1);
+        }
+
+        refresh(); 
+    }
+
+    close(sock);
+
+    endwin();
+}
 
 int main(int argc, char* argv[]) {
     if (argc < 3) {
