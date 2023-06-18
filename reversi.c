@@ -82,6 +82,80 @@ void printBoard(const struct GameState* gameState) {
     refresh();
 }
 
+int isValidMove(const struct GameState* gameState, int row, int col) {
+    char currentPlayer = gameState->currentTurn;
+    char opponentPlayer = (currentPlayer == BLACK) ? WHITE : BLACK;
+
+    if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
+        return 0;
+    }
+
+    if (gameState->board[row][col] != EMPTY) {
+        return 0;
+    }
+
+    int dr, dc;
+    for (dr = -1; dr <= 1; dr++) {
+        for (dc = -1; dc <= 1; dc++) {
+            if (dr == 0 && dc == 0) {
+                continue;
+            }
+            int r = row + dr;
+            int c = col + dc;
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
+                while (1) {
+                    r += dr;
+                    c += dc;
+                    if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+                        break;
+                    }
+                    if (gameState->board[r][c] == currentPlayer) {
+                        return 1;
+                    }
+                    if (gameState->board[r][c] == EMPTY) {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+void makeMove(struct GameState* gameState, int row, int col) {
+    if (!isValidMove(gameState, row, col)) {
+        return;
+    }
+
+    char currentPlayer = gameState->currentTurn;
+    char opponentPlayer = (currentPlayer == BLACK) ? WHITE : BLACK;
+
+    gameState->board[row][col] = currentPlayer;
+
+    int dr, dc;
+    for (dr = -1; dr <= 1; dr++) {
+        for (dc = -1; dc <= 1; dc++) {
+            if (dr == 0 && dc == 0) {
+                continue;
+            }
+            int r = row + dr;
+            int c = col + dc;
+            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
+                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
+                    gameState->board[r][c] = currentPlayer;
+                    r += dr;
+                    c += dc;
+                }
+            }
+        }
+    }
+
+    gameState->currentTurn = opponentPlayer;
+
+    printBoard(gameState);
+}
+
 void runServer(int port) {
     int socket_desc, client_sock, c;
     struct sockaddr_in server, client;
