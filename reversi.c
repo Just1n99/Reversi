@@ -13,11 +13,6 @@
 #define WHITE 'W'
 #define EMPTY '.'
 
-struct GameState {
-    char board[BOARD_SIZE][BOARD_SIZE];
-    char currentTurn;
-};
-
 void initializeGame(struct GameState* gameState) {
     memset(gameState->board, EMPTY, sizeof(gameState->board));
     gameState->board[3][3] = WHITE;
@@ -298,7 +293,6 @@ void runClient(const char* serverIP, int port) {
             mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
             continue;
         }
-        row--;  
         col = toupper(col) - 'A';  
 
         snprintf(message, sizeof(message), "%d,%d", row, col);
