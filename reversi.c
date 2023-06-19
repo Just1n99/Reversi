@@ -236,8 +236,8 @@ void runServer(int port) {
                 continue;
             }
 
-            makeMove(&gameState, row, black_col); // Update the game board
-            printBoard(&gameState); // Update the board after making a move
+            makeMove(&gameState, row, black_col);
+            printBoard(&gameState); 
 
             serverTurn = true;
         } else {
@@ -261,17 +261,17 @@ void runServer(int port) {
                 exit(1);
             }
 
-            makeMove(&gameState, row, col); // Update the game board
-            printBoard(&gameState); // Update the board after making a move
+            makeMove(&gameState, row, col); 
+            printBoard(&gameState); 
 
-            serverTurn = false; // Fix the serverTurn flag
+            serverTurn = false; 
         }
 
         printBoard(&gameState);
         refresh();
     }
 
-    printBoard(&gameState); // Update the board before printing the final state
+    printBoard(&gameState); 
     printf("Game over!\n");
 
     close(client_sock);
@@ -334,9 +334,8 @@ void runClient(const char* serverIP, int port) {
                 exit(1);
             }
 
-            makeMove(&gameState, row, col); // Update the game board
-            printBoard(&gameState); // Update the board after making a move
-
+            makeMove(&gameState, row, col);
+            printBoard(&gameState); 
             serverTurn = false;
         } else {
             mvprintw(LINES - 1, 0, "Waiting for server's move...");
@@ -355,8 +354,8 @@ void runClient(const char* serverIP, int port) {
                 continue;
             }
 
-            makeMove(&gameState, row, black_col); // Update the game board
-            printBoard(&gameState); // Update the board after making a move
+            makeMove(&gameState, row, black_col); 
+            printBoard(&gameState); 
 
             serverTurn = true;
         }
@@ -365,7 +364,7 @@ void runClient(const char* serverIP, int port) {
         refresh();
     }
 
-    printBoard(&gameState); // Update the board before printing the final state
+    printBoard(&gameState); 
     printf("Game over!\n");
 
     close(sock);
