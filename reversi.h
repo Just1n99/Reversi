@@ -19,4 +19,3 @@ void runServer(int port);
 void runClient(const char* serverIP, int port);
 
 #endif  // REVERSI_H
-
