@@ -287,7 +287,6 @@ void runClient(const char* serverIP, int port) {
         wgetstr(stdscr, userInput); 
         noecho(); 
 
-
         if (sscanf(userInput, "%d%c", &row, &col) != 2) {
 
             mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
