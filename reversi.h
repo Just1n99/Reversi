@@ -13,6 +13,7 @@ struct GameState {
 
 void initializeGame(struct GameState* gameState);
 void printBoard(const struct GameState* gameState);
+void header(int startCol, const char* title);
 int isValidMove(const struct GameState* gameState, int row, int col);
 void makeMove(struct GameState* gameState, int row, int col);
 void runServer(int port);
