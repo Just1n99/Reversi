@@ -15,10 +15,10 @@
 
 void initializeGame(struct GameState* gameState) {
     memset(gameState->board, EMPTY, sizeof(gameState->board));
-    gameState->board[3][3] = WHITE;
-    gameState->board[3][4] = BLACK;
-    gameState->board[4][3] = BLACK;
-    gameState->board[4][4] = WHITE;
+    gameState->board[3][3] = BLACK;
+    gameState->board[3][4] = WHITE;
+    gameState->board[4][3] = WHITE;
+    gameState->board[4][4] = BLACK;
     gameState->currentTurn = BLACK;
 }
 
@@ -136,11 +136,20 @@ void makeMove(struct GameState* gameState, int row, int col) {
             }
             int r = row + dr;
             int c = col + dc;
-            if (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
-                while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
+            int flipCount = 0;
+            while (r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == opponentPlayer) {
+                flipCount++;
+                r += dr;
+                c += dc;
+            }
+            if (flipCount > 0 && r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && gameState->board[r][c] == currentPlayer) {
+                r = row + dr;
+                c = col + dc;
+                while (flipCount > 0) {
                     gameState->board[r][c] = currentPlayer;
                     r += dr;
                     c += dc;
+                    flipCount--;
                 }
             }
         }
@@ -293,7 +302,6 @@ void runClient(const char* serverIP, int port) {
             mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
             continue;
         }
-        row--;  
         col = toupper(col) - 'A';  
 
         snprintf(message, sizeof(message), "%d,%d", row, col);
