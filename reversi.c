@@ -6,16 +6,12 @@
 #include <arpa/inet.h>
 #include <ncurses.h>
 #include <ctype.h>
+#include "reversi.h"
 
 #define BOARD_SIZE 8
 #define BLACK 'B'
 #define WHITE 'W'
 #define EMPTY '.'
-
-struct GameState {
-    char board[BOARD_SIZE][BOARD_SIZE];
-    char currentTurn;
-};
 
 void initializeGame(struct GameState* gameState) {
     memset(gameState->board, EMPTY, sizeof(gameState->board));
@@ -40,7 +36,8 @@ void printBoard(const struct GameState* gameState) {
     startCol = (windowWidth - boardWidth) / 2;
 
     clear();
-    refresh(); 
+
+    header(startCol, "Reversi");
 
     for (i = 0; i < BOARD_SIZE; i++) {
         mvprintw(startRow + i * 2 + 1, startCol - 3, "%d", i);
@@ -81,6 +78,19 @@ void printBoard(const struct GameState* gameState) {
 
     refresh();
 }
+
+void header(int startCol, const char* title) {
+    int i;
+    int titleLength = strlen(title);
+    int headerWidth = 33;
+    int startHeaderCol = startCol + (headerWidth - titleLength) / 2;
+
+    mvprintw(0, startHeaderCol, title);
+    for (i = 0; i < headerWidth; i++) {
+        mvaddch(1, startCol + i, '-');
+    }
+}
+
 int isValidMove(const struct GameState* gameState, int row, int col) {
     char currentPlayer = gameState->currentTurn;
     char opponentPlayer = (currentPlayer == BLACK) ? WHITE : BLACK;
@@ -164,7 +174,6 @@ void makeMove(struct GameState* gameState, int row, int col) {
     printBoard(gameState);
 }
 
-
 void runServer(int port) {
     int socket_desc, client_sock, c;
     struct sockaddr_in server, client;
@@ -199,7 +208,7 @@ void runServer(int port) {
     struct GameState gameState;
     initializeGame(&gameState);
 
-    int row, black_col; 
+    int row, black_col;
     char col;
     char message[256];
     int gameover = 0;
@@ -227,7 +236,10 @@ void runServer(int port) {
                 continue;
             }
 
-            serverTurn = false;
+            makeMove(&gameState, row, black_col); // Update the game board
+            printBoard(&gameState); // Update the board after making a move
+
+            serverTurn = true;
         } else {
             mvprintw(LINES - 1, 0, "Enter your move (e.g., 3C): ");
             refresh();
@@ -249,20 +261,22 @@ void runServer(int port) {
                 exit(1);
             }
 
-            serverTurn = true;
+            makeMove(&gameState, row, col); // Update the game board
+            printBoard(&gameState); // Update the board after making a move
+
+            serverTurn = false; // Fix the serverTurn flag
         }
 
-
+        printBoard(&gameState);
         refresh();
     }
 
-    printBoard(&gameState);
+    printBoard(&gameState); // Update the board before printing the final state
     printf("Game over!\n");
 
     close(client_sock);
     close(socket_desc);
 }
-
 
 void runClient(const char* serverIP, int port) {
     int sock;
@@ -281,60 +295,80 @@ void runClient(const char* serverIP, int port) {
     server.sin_port = htons(port);
 
     if (connect(sock, (struct sockaddr*)&server, sizeof(server)) < 0) {
-        perror("Connection failed");
+        perror("Connect failed");
         exit(1);
     }
 
-    puts("Connected to server");
+    printf("Connected to server\n");
 
     initializeGame(&gameState);
 
-    initscr();
-    cbreak();
-    noecho();
-    keypad(stdscr, TRUE);
-
-    int row;
+    int row, black_col;
     char col;
     int gameover = 0;
+    bool serverTurn = true;
+
     while (!gameover) {
         clear();
         printBoard(&gameState);
-        mvprintw(LINES - 1, 0, "Enter your move (e.g., 3C): ");
         refresh();
 
-        char userInput[256];
-        echo();
-        wgetstr(stdscr, userInput);
-        noecho();
+        if (serverTurn) {
+            mvprintw(LINES - 1, 0, "Enter your move (e.g., 3C): ");
+            refresh();
 
-        if (sscanf(userInput, "%d%c", &row, &col) != 2) {
-            mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
-            continue;
+            char userInput[256];
+            echo();
+            wgetstr(stdscr, userInput);
+            noecho();
+
+            if (sscanf(userInput, "%d%c", &row, &col) != 2) {
+                mvprintw(LINES - 1, 0, "Invalid move, try again.     ");
+                continue;
+            }
+            col = toupper(col) - 'A';
+
+            snprintf(message, sizeof(message), "%d,%d", row, col);
+            if (send(sock, message, strlen(message), 0) < 0) {
+                perror("Send failed");
+                exit(1);
+            }
+
+            makeMove(&gameState, row, col); // Update the game board
+            printBoard(&gameState); // Update the board after making a move
+
+            serverTurn = false;
+        } else {
+            mvprintw(LINES - 1, 0, "Waiting for server's move...");
+            refresh();
+
+            if (recv(sock, message, sizeof(message), 0) < 0) {
+                perror("Receive failed");
+                exit(1);
+            }
+
+            sscanf(message, "%d,%d", &row, &black_col);
+            printf("Server move: %d,%d\n", row, black_col);
+
+            if (!isValidMove(&gameState, row, black_col)) {
+                printf("Invalid move, try again.\n");
+                continue;
+            }
+
+            makeMove(&gameState, row, black_col); // Update the game board
+            printBoard(&gameState); // Update the board after making a move
+
+            serverTurn = true;
         }
-        col = toupper(col) - 'A';
 
-        snprintf(message, sizeof(message), "%d,%d", row, col);
-        if (send(sock, message, strlen(message), 0) < 0) {
-            perror("Send failed");
-            exit(1);
-        }
-
-        clear();
         printBoard(&gameState);
-        mvprintw(LINES - 1, 0, "Waiting for server's move...");
-        refresh();
-
-        if (recv(sock, &gameState, sizeof(gameState), 0) < 0) {
-            perror("Receive failed");
-            exit(1);
-        }
-
         refresh();
     }
 
+    printBoard(&gameState); // Update the board before printing the final state
+    printf("Game over!\n");
+
     close(sock);
-    endwin();
 }
 
 
